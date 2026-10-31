@@ -1,0 +1,17 @@
+name: BanWarden
+version: 1.1.0
+main: net.valterion.banwarden.BanWarden
+api-version: '1.21'
+description: Un Warden castiga al jugador antes de ser baneado
+commands:
+  banwarden:
+    description: Administración de BanWarden
+    usage: /banwarden <reload | run <jugador> <comando>>
+    permission: banwarden.admin
+permissions:
+  banwarden.use:
+    description: Los bans de este staff activan la animación del Warden
+    default: op
+  banwarden.admin:
+    description: Recargar la configuración y usar /banwarden run
+    default: op

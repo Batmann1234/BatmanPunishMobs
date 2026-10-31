@@ -1,0 +1,23 @@
+# Comandos que activan al Warden (solo si el jugador está conectado)
+commands:
+  - ban
+  - tempban
+
+# También interceptar los comandos escritos en la consola (y RCON)
+intercept-console: true
+
+# Distancia (en bloques) a la que aparece el Warden DETRÁS del jugador
+distance: 2.5
+
+# Daño del sonic boom (2 = 1 corazón)
+damage: 8.0
+
+# Ticks (20 = 1 segundo)
+emerge-ticks: 60      # tiempo que tarda en salir del suelo
+charge-ticks: 30      # tiempo cargando el sonic boom antes de disparar
+ban-delay-ticks: 15   # tiempo entre el golpe (el jugador desaparece) y el ban
+leave-delay-ticks: 20 # tiempo entre el ban y que el Warden empiece a hundirse
+dig-ticks: 40         # tiempo hundiéndose antes de desaparecer
+
+# Oscuridad en la pantalla del jugador mientras el Warden aparece
+darkness: true
