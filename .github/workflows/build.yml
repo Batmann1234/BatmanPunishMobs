@@ -26,6 +26,6 @@ jobs:
       - name: Guardar el .jar como artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: BanWarden
-          path: target/BanWarden.jar
+          name: BatmanPunishMobs
+          path: target/BatmanPunishMobs.jar
           if-no-files-found: error
