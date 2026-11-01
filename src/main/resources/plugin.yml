@@ -1,17 +1,19 @@
-name: BanWarden
-version: 1.1.0
-main: net.valterion.banwarden.BanWarden
+name: BatmanPunishMobs
+version: 2.0.0
+main: net.valterion.batmanpunishmobs.BatmanPunishMobs
 api-version: '1.21'
-description: Un Warden castiga al jugador antes de ser baneado
+softdepend: [WorldGuard]
+description: Un mob castiga al jugador (Warden, Creeper, Blaze) cuando el staff lo sanciona
 commands:
-  banwarden:
-    description: Administración de BanWarden
-    usage: /banwarden <reload | run <jugador> <comando>>
-    permission: banwarden.admin
+  batmanpunishmobs:
+    description: Administración de BatmanPunishMobs
+    usage: /batmanpunishmobs <reload | run <jugador> <comando>>
+    aliases: [bpm]
+    permission: batmanpunishmobs.admin
 permissions:
-  banwarden.use:
-    description: Los bans de este staff activan la animación del Warden
+  batmanpunishmobs.use:
+    description: Las sanciones de este staff activan la animación del mob
     default: op
-  banwarden.admin:
-    description: Recargar la configuración y usar /banwarden run
+  batmanpunishmobs.admin:
+    description: Recargar la configuración y usar /batmanpunishmobs run
     default: op

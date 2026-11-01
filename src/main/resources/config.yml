@@ -1,23 +1,56 @@
-# Comandos que activan al Warden (solo si el jugador está conectado)
-commands:
-  - ban
-  - tempban
+# ============================================================
+#  BatmanPunishMobs
+# ============================================================
+
+# Qué animación activa cada comando (solo si el jugador sancionado está conectado).
+# Animaciones disponibles:
+#   WARDEN  -> el Warden sale detrás del jugador, lo congela, lo golpea y luego se ejecuta el comando
+#   CREEPER -> un Creeper aparece y hace una explosión falsa (sin congelar, sin daño)
+#   BLAZE   -> un Blaze dispara muchas bolas de fuego (sin congelar)
+# Para añadir o quitar comandos, edita esta lista (el nombre del comando va en minúsculas).
+animations:
+  ban: WARDEN
+  tempban: WARDEN
+  muteip: WARDEN
+  warn: CREEPER
+  mute: BLAZE
 
 # También interceptar los comandos escritos en la consola (y RCON)
 intercept-console: true
 
-# Distancia (en bloques) a la que aparece el Warden DETRÁS del jugador
-distance: 2.5
+# Los mobs de las animaciones ignoran las protecciones (WorldGuard: mob-spawning, deny-spawn,
+# invincible, mob-damage...). Si está en false y la zona no permite mobs, NO sale el mob
+# y el comando se ejecuta igualmente.
+bypass-protections: true
 
-# Daño del sonic boom (2 = 1 corazón)
-damage: 8.0
+# ------------------------------------------------------------
+#  WARDEN
+# ------------------------------------------------------------
+warden:
+  distance: 2.5         # bloques a los que aparece DETRÁS del jugador
+  damage: 8.0           # daño del sonic boom (2 = 1 corazón)
+  # Ticks (20 = 1 segundo)
+  emerge-ticks: 60      # tiempo que tarda en salir del suelo
+  charge-ticks: 30      # tiempo cargando el sonic boom antes de disparar
+  ban-delay-ticks: 15   # tiempo entre el golpe (el jugador desaparece) y el comando
+  leave-delay-ticks: 20 # tiempo entre el comando y que el Warden empiece a hundirse
+  dig-ticks: 40         # tiempo hundiéndose antes de desaparecer
+  darkness: true        # oscuridad en la pantalla del jugador mientras el Warden aparece
 
-# Ticks (20 = 1 segundo)
-emerge-ticks: 60      # tiempo que tarda en salir del suelo
-charge-ticks: 30      # tiempo cargando el sonic boom antes de disparar
-ban-delay-ticks: 15   # tiempo entre el golpe (el jugador desaparece) y el ban
-leave-delay-ticks: 20 # tiempo entre el ban y que el Warden empiece a hundirse
-dig-ticks: 40         # tiempo hundiéndose antes de desaparecer
+# ------------------------------------------------------------
+#  CREEPER
+# ------------------------------------------------------------
+creeper:
+  distance: 2.0         # bloques DELANTE del jugador
+  fuse-ticks: 10        # explota a los 10 ticks (medio segundo)
 
-# Oscuridad en la pantalla del jugador mientras el Warden aparece
-darkness: true
+# ------------------------------------------------------------
+#  BLAZE
+# ------------------------------------------------------------
+blaze:
+  distance: 3.5         # bloques delante del jugador
+  height: 1.5           # bloques por encima del jugador
+  duration-ticks: 60    # cuánto tiempo dispara
+  fire-interval-ticks: 3 # una bola de fuego cada X ticks
+  spread: 0.7           # dispersión de la puntería
+  harmless: true        # true = las bolas se apagan al impactar (sin fuego ni daño)
