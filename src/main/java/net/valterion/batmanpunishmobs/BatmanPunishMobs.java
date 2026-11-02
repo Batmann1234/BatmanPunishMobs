@@ -16,6 +16,7 @@ import org.bukkit.entity.Blaze;
 import org.bukkit.entity.Creeper;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Ravager;
 import org.bukkit.entity.Pose;
 import org.bukkit.entity.SmallFireball;
 import org.bukkit.entity.Warden;
@@ -65,6 +66,8 @@ public class BatmanPunishMobs extends JavaPlugin implements Listener {
     private final Set<Warden> wardens = new HashSet<>();
     /** Creepers y blazes de las animaciones sin congelamiento. */
     private final Set<Entity> mobs = new HashSet<>();
+    /** Jugadores con una animación con retraso en curso (Ravager), para no lanzarla dos veces. */
+    private final Set<UUID> busy = new HashSet<>();
     /** true únicamente mientras nosotros invocamos un mob (para saltarse protecciones de spawn). */
     private boolean spawningMob = false;
     /** Etiqueta de las bolas de fuego inofensivas del Blaze. */
@@ -86,6 +89,7 @@ public class BatmanPunishMobs extends JavaPlugin implements Listener {
             if (m.isValid()) m.remove();
         }
         mobs.clear();
+        busy.clear();
         for (UUID id : new HashSet<>(frozen)) {
             Player p = Bukkit.getPlayer(id);
             if (p != null) release(p);
@@ -111,10 +115,10 @@ public class BatmanPunishMobs extends JavaPlugin implements Listener {
             String line = String.join(" ", Arrays.copyOfRange(args, 2, args.length));
             if (line.startsWith("/")) line = line.substring(1);
             String type = typeOf(line);
-            if (target == null || frozen.contains(target.getUniqueId()) || type == null) {
+            if (target == null || isBusy(target.getUniqueId()) || type == null) {
                 dispatch(sender, line);
-            } else if (type.equals("WARDEN")) {
-                punish(sender, target, line);
+            } else if (delaysCommand(type)) {
+                startAnimation(sender, target, line, type);
             } else {
                 dispatch(sender, line);
                 playAnimation(type, target);
@@ -159,7 +163,7 @@ public class BatmanPunishMobs extends JavaPlugin implements Listener {
         if (type == null) return null;
 
         Player target = Bukkit.getPlayerExact(args[1]);
-        if (target == null || frozen.contains(target.getUniqueId())) return null;
+        if (target == null || isBusy(target.getUniqueId())) return null;
         return new Match(target, type);
     }
 
@@ -177,9 +181,9 @@ public class BatmanPunishMobs extends JavaPlugin implements Listener {
         Match m = findTarget(line);
         if (m == null) return;
 
-        if (m.type().equals("WARDEN")) {
+        if (delaysCommand(m.type())) {
             e.setCancelled(true);
-            punish(p, m.target(), line);
+            startAnimation(p, m.target(), line, m.type());
         } else {
             playAnimation(m.type(), m.target()); // el comando sigue su curso normal
         }
@@ -196,10 +200,10 @@ public class BatmanPunishMobs extends JavaPlugin implements Listener {
         Match m = findTarget(line);
         if (m == null) return;
 
-        if (m.type().equals("WARDEN")) {
+        if (delaysCommand(m.type())) {
             e.setCancelled(true);
             if (line.startsWith("/")) line = line.substring(1);
-            punish(s, m.target(), line);
+            startAnimation(s, m.target(), line, m.type());
         } else {
             playAnimation(m.type(), m.target()); // el comando sigue su curso normal
         }
@@ -208,6 +212,23 @@ public class BatmanPunishMobs extends JavaPlugin implements Listener {
     // ------------------------------------------------------------------
     // Secuencia del castigo
     // ------------------------------------------------------------------
+
+    private boolean isBusy(UUID id) {
+        return frozen.contains(id) || busy.contains(id);
+    }
+
+    /** Las animaciones WARDEN y RAVAGER retrasan el comando hasta que termina la secuencia. */
+    private boolean delaysCommand(String type) {
+        return type.equals("WARDEN") || type.equals("RAVAGER");
+    }
+
+    private void startAnimation(CommandSender sender, Player target, String line, String type) {
+        switch (type) {
+            case "WARDEN" -> punish(sender, target, line);
+            case "RAVAGER" -> ravagerAnimation(sender, target, line);
+            default -> dispatch(sender, line);
+        }
+    }
 
     private void punish(CommandSender sender, Player target, String banCommand) {
         UUID targetId = target.getUniqueId();
@@ -384,7 +405,8 @@ public class BatmanPunishMobs extends JavaPlugin implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onWardenDamage(EntityDamageByEntityEvent e) {
-        if (!(e.getDamager() instanceof Warden w) || !wardens.contains(w)) return;
+        Entity d = e.getDamager();
+        if (!(d instanceof Warden w && wardens.contains(w)) && !mobs.contains(d)) return;
         if (!(e.getEntity() instanceof Player)) return;
         if (!getConfig().getBoolean("bypass-protections", true)) return;
         if (e.isCancelled()) e.setCancelled(false);
@@ -510,6 +532,111 @@ public class BatmanPunishMobs extends JavaPlugin implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onCreeperPrime(ExplosionPrimeEvent e) {
         if (mobs.contains(e.getEntity())) e.setCancelled(true);
+    }
+
+    // ------------------------------------------------------------------
+    // Ravager (/kick): aparece detrás, corre hacia el jugador, lo golpea y se ejecuta el comando
+    // ------------------------------------------------------------------
+
+    private void ravagerAnimation(CommandSender sender, Player target, String command) {
+        double startDist = getConfig().getDouble("ravager.start-distance", 12.0);
+        double speed = getConfig().getDouble("ravager.speed", 0.6);
+        double hitDist = getConfig().getDouble("ravager.hit-distance", 2.0);
+        double damage = getConfig().getDouble("ravager.damage", 4.0);
+        double knockback = getConfig().getDouble("ravager.knockback", 1.2);
+        int cmdDelay = getConfig().getInt("ravager.command-delay-ticks", 5);
+        int maxTicks = getConfig().getInt("ravager.max-ticks", 120);
+        UUID targetId = target.getUniqueId();
+        World world = target.getWorld();
+
+        // Detrás del jugador: el punto más lejano (hasta startDist) con espacio libre para el Ravager
+        Location tl = target.getLocation();
+        Vector back = tl.getDirection().setY(0);
+        if (back.lengthSquared() < 0.0001) back = new Vector(0, 0, 1);
+        back.normalize().multiply(-1);
+
+        Location spawn = tl.clone().add(back.clone().multiply(3));
+        for (double d = startDist; d >= 3; d -= 1) {
+            Location c = tl.clone().add(back.clone().multiply(d));
+            if (c.getBlock().isPassable()
+                    && c.clone().add(0, 1, 0).getBlock().isPassable()
+                    && c.clone().add(0, 2, 0).getBlock().isPassable()) {
+                spawn = c;
+                break;
+            }
+        }
+        spawn.setDirection(tl.toVector().subtract(spawn.toVector()));
+
+        Ravager ravager = spawnMob(world, spawn, Ravager.class, r -> {
+            r.setAI(false);
+            r.setInvulnerable(true);
+            r.setPersistent(false);
+            r.setRemoveWhenFarAway(true);
+            r.setSilent(true);
+        });
+        if (ravager == null) { // no se pudo invocar: solo el comando
+            dispatch(sender, command);
+            return;
+        }
+
+        mobs.add(ravager);
+        busy.add(targetId);
+        world.playSound(spawn, Sound.ENTITY_RAVAGER_ROAR, 2f, 1f);
+
+        new BukkitRunnable() {
+            int ticks = 0;
+
+            @Override
+            public void run() {
+                Player t = Bukkit.getPlayer(targetId);
+                if (!ravager.isValid() || t == null || !t.isOnline()
+                        || !t.getWorld().equals(ravager.getWorld()) || ticks++ >= maxTicks) {
+                    end(); // algo falló: se libera y se ejecuta el comando igualmente
+                    return;
+                }
+
+                Location rl = ravager.getLocation();
+                Location pl = t.getLocation();
+                Vector flat = pl.toVector().subtract(rl.toVector()).setY(0);
+                double dist = flat.length();
+
+                if (dist <= hitDist) { // ¡te toca!
+                    Vector dir = dist < 0.0001 ? new Vector(0, 0, 1) : flat.clone().normalize();
+                    double dmg = Math.min(damage, t.getHealth() - 1); // el golpe nunca mata
+                    if (dmg > 0) t.damage(dmg, ravager);
+                    t.setVelocity(dir.multiply(knockback).setY(0.45));
+                    ravager.getWorld().playSound(rl, Sound.ENTITY_RAVAGER_ATTACK, 2f, 1f);
+                    ravager.getWorld().spawnParticle(Particle.CRIT, t.getLocation().add(0, 1, 0), 20, 0.3, 0.5, 0.3, 0.2);
+                    cancel();
+                    Bukkit.getScheduler().runTaskLater(BatmanPunishMobs.this, this::end, Math.max(0, cmdDelay));
+                    return;
+                }
+
+                // Corre hacia el jugador (la altura sigue suavemente a la del jugador)
+                Vector step = flat.normalize().multiply(Math.min(speed, dist));
+                Location next = rl.clone().add(step);
+                next.setY(rl.getY() + (pl.getY() - rl.getY()) * 0.3);
+                next.setDirection(step);
+                ravager.teleport(next);
+                if (ticks % 4 == 0) ravager.getWorld().playSound(next, Sound.ENTITY_RAVAGER_STEP, 1.5f, 1f);
+                ravager.getWorld().spawnParticle(Particle.CLOUD, next, 2, 0.5, 0.1, 0.5, 0.01);
+            }
+
+            private boolean finished = false;
+
+            private void end() {
+                if (finished) return;
+                finished = true;
+                cancel();
+                if (ravager.isValid()) {
+                    ravager.getWorld().spawnParticle(Particle.POOF, ravager.getLocation().add(0, 1, 0), 20, 0.5, 0.7, 0.5, 0.02);
+                    ravager.remove();
+                }
+                mobs.remove(ravager);
+                busy.remove(targetId);
+                dispatch(sender, command);
+            }
+        }.runTaskTimer(this, 0L, 1L);
     }
 
     /** Las bolas de fuego del Blaze se apagan al impactar: sin fuego, sin daño. */

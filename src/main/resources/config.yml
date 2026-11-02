@@ -7,6 +7,7 @@
 #   WARDEN  -> el Warden sale detrás del jugador, lo congela, lo golpea y luego se ejecuta el comando
 #   CREEPER -> un Creeper aparece y hace una explosión falsa (sin congelar, sin daño)
 #   BLAZE   -> un Blaze dispara muchas bolas de fuego (sin congelar)
+#   RAVAGER -> un Ravager sale detrás del jugador, corre hacia él, lo golpea y luego se ejecuta el comando
 # Para añadir o quitar comandos, edita esta lista (el nombre del comando va en minúsculas).
 animations:
   ban: WARDEN
@@ -14,6 +15,7 @@ animations:
   muteip: WARDEN
   warn: CREEPER
   mute: BLAZE
+  kick: RAVAGER
 
 # También interceptar los comandos escritos en la consola (y RCON)
 intercept-console: true
@@ -54,3 +56,15 @@ blaze:
   fire-interval-ticks: 3 # una bola de fuego cada X ticks
   spread: 0.7           # dispersión de la puntería
   harmless: true        # true = las bolas se apagan al impactar (sin fuego ni daño)
+
+# ------------------------------------------------------------
+#  RAVAGER
+# ------------------------------------------------------------
+ravager:
+  start-distance: 12.0      # a cuántos bloques DETRÁS del jugador aparece (menos si no hay espacio)
+  speed: 0.6                # bloques por tick que avanza (0.6 = 12 bloques/seg)
+  hit-distance: 2.0         # a qué distancia cuenta como "te toca"
+  damage: 4.0               # daño del golpe (2 = 1 corazón); nunca mata al jugador
+  knockback: 1.2            # fuerza con la que te empuja
+  command-delay-ticks: 5    # tiempo entre el golpe y el comando
+  max-ticks: 120            # tiempo máximo de carrera; si se pasa, se ejecuta el comando igualmente
