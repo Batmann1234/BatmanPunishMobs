@@ -686,9 +686,18 @@ public class BatmanPunishMobs extends JavaPlugin implements Listener {
         return !frozen.isEmpty() && frozen.contains(p.getUniqueId());
     }
 
+    /**
+     * Cuerpo congelado, cámara libre: se bloquea el desplazamiento (x, y, z) pero se conserva
+     * la rotación, así que el jugador puede mirar a su alrededor mientras no puede moverse.
+     */
     @EventHandler(ignoreCancelled = true)
     public void onMove(PlayerMoveEvent e) {
-        if (isFrozen(e.getPlayer())) e.setCancelled(true);
+        if (!isFrozen(e.getPlayer())) return;
+        Location from = e.getFrom();
+        Location to = e.getTo();
+        if (to == null) return;
+        if (from.getX() == to.getX() && from.getY() == to.getY() && from.getZ() == to.getZ()) return; // solo giró la cámara
+        e.setTo(new Location(from.getWorld(), from.getX(), from.getY(), from.getZ(), to.getYaw(), to.getPitch()));
     }
 
     @EventHandler(ignoreCancelled = true)
