@@ -1,9 +1,9 @@
 name: BatmanPunishMobs
-version: 2.0.0
+version: 2.1.0
 main: net.valterion.batmanpunishmobs.BatmanPunishMobs
 api-version: '1.21'
 softdepend: [WorldGuard]
-description: Un mob castiga al jugador (Warden, Creeper, Blaze) cuando el staff lo sanciona
+description: Un mob castiga al jugador (Warden, Creeper, Blaze, Ravager y 10 animaciones con ItemDisplay) cuando el staff lo sanciona
 commands:
   batmanpunishmobs:
     description: Administración de BatmanPunishMobs

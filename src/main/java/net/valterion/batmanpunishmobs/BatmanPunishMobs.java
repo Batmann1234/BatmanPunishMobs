@@ -15,6 +15,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Blaze;
 import org.bukkit.entity.Creeper;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.EvokerFangs;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Ravager;
 import org.bukkit.entity.Pose;
@@ -48,10 +49,12 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.Set;
 import java.util.UUID;
@@ -72,15 +75,19 @@ public class BatmanPunishMobs extends JavaPlugin implements Listener {
     private boolean spawningMob = false;
     /** Etiqueta de las bolas de fuego inofensivas del Blaze. */
     private static final String FIREBALL_TAG = "bpm_fireball";
+    /** Animaciones nuevas con ItemDisplay (JACK_BOX, JAWS, CLOCK, ...). */
+    private ShowAnimations shows;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        shows = new ShowAnimations(this);
         Bukkit.getPluginManager().registerEvents(this, this);
     }
 
     @Override
     public void onDisable() {
+        if (shows != null) shows.shutdown();
         for (Warden w : wardens) {
             if (w.isValid()) w.remove();
         }
@@ -149,7 +156,21 @@ public class BatmanPunishMobs extends JavaPlugin implements Listener {
         ConfigurationSection sec = getConfig().getConfigurationSection("animations");
         if (sec == null) return null;
         String type = sec.getString(label);
-        return type == null ? null : type.trim().toUpperCase(Locale.ROOT);
+        if (type == null) return null;
+        type = type.trim().toUpperCase(Locale.ROOT);
+        if (type.equals("RANDOM")) return randomShow();
+        return type;
+    }
+
+    /** Elige al azar una animación de la lista random-pool (por defecto, todas las nuevas). */
+    private String randomShow() {
+        List<String> pool = new java.util.ArrayList<>();
+        for (String n : getConfig().getStringList("random-pool")) {
+            String up = n.trim().toUpperCase(Locale.ROOT);
+            if (shows.has(up)) pool.add(up);
+        }
+        if (pool.isEmpty()) pool = shows.names();
+        return pool.get(ThreadLocalRandom.current().nextInt(pool.size()));
     }
 
     /** Devuelve el jugador conectado al que apunta el comando y su animación, o null si no aplica. */
@@ -219,14 +240,22 @@ public class BatmanPunishMobs extends JavaPlugin implements Listener {
 
     /** Las animaciones WARDEN y RAVAGER retrasan el comando hasta que termina la secuencia. */
     private boolean delaysCommand(String type) {
-        return type.equals("WARDEN") || type.equals("RAVAGER");
+        if (type.equals("WARDEN") || type.equals("RAVAGER")) return true;
+        if (shows.has(type)) {
+            return getConfig().getBoolean("shows." + type + ".delay-command",
+                    getConfig().getBoolean("shows.delay-command", true));
+        }
+        return false;
     }
 
     private void startAnimation(CommandSender sender, Player target, String line, String type) {
         switch (type) {
             case "WARDEN" -> punish(sender, target, line);
             case "RAVAGER" -> ravagerAnimation(sender, target, line);
-            default -> dispatch(sender, line);
+            default -> {
+                if (shows.has(type)) startShow(sender, target, line, type);
+                else dispatch(sender, line);
+            }
         }
     }
 
@@ -359,7 +388,53 @@ public class BatmanPunishMobs extends JavaPlugin implements Listener {
     }
 
     /** Intenta invocar un mob. Devuelve null si algo (WorldGuard, otro plugin, el servidor) lo impide. */
-    private <T extends Entity> T spawnMob(World world, Location loc, Class<T> type, Consumer<T> init) {
+    /** Pone en marcha una animación de ShowAnimations (sender == null: el comando no se retrasa). */
+    private void startShow(CommandSender sender, Player target, String line, String type) {
+        UUID id = target.getUniqueId();
+        boolean delayed = sender != null;
+        boolean freeze = delayed && shows.freezes(type) && getConfig().getBoolean("shows.freeze-player", true);
+
+        busy.add(id);
+        if (freeze) {
+            frozen.add(id);
+            target.closeInventory();
+            target.leaveVehicle();
+        }
+
+        AtomicBoolean ran = new AtomicBoolean(false);
+        Runnable impact = () -> {
+            if (delayed && ran.compareAndSet(false, true)) dispatch(sender, line);
+        };
+        Runnable vanishNow = () -> {
+            Player p = Bukkit.getPlayer(id);
+            if (p != null && p.isOnline()) vanish(p);
+        };
+        AtomicBoolean finished = new AtomicBoolean(false);
+        Runnable done = () -> {
+            if (!finished.compareAndSet(false, true)) return;
+            impact.run(); // seguro: si la animación no llegó a ejecutar el comando, se ejecuta ahora
+            Bukkit.getScheduler().runTaskLater(this, () -> {
+                busy.remove(id);
+                frozen.remove(id);
+                Player p = Bukkit.getPlayer(id);
+                if (p != null && p.isOnline()) release(p);
+            }, delayed ? 30L : 1L);
+        };
+
+        boolean started = shows.play(type, target, new ShowAnimations.Hooks(impact, vanishNow, done));
+        if (!started) done.run();
+    }
+
+    /** Registro de mobs de las animaciones (para limpiarlos y anular protecciones). */
+    void trackMob(Entity e) {
+        mobs.add(e);
+    }
+
+    void untrackMob(Entity e) {
+        mobs.remove(e);
+    }
+
+    <T extends Entity> T spawnMob(World world, Location loc, Class<T> type, Consumer<T> init) {
         spawningMob = true;
         try {
             T e = world.spawn(loc, type, init);
@@ -420,7 +495,9 @@ public class BatmanPunishMobs extends JavaPlugin implements Listener {
         switch (type) {
             case "CREEPER" -> creeperAnimation(target);
             case "BLAZE" -> blazeAnimation(target);
-            default -> { }
+            default -> {
+                if (shows.has(type)) startShow(null, target, null, type); // el comando sigue su curso normal
+            }
         }
     }
 
@@ -637,6 +714,14 @@ public class BatmanPunishMobs extends JavaPlugin implements Listener {
                 dispatch(sender, command);
             }
         }.runTaskTimer(this, 0L, 1L);
+    }
+
+    /** Los colmillos del Evoker de la animación EVOKER_FANGS nunca hacen daño. */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onFangDamage(EntityDamageByEntityEvent e) {
+        if (e.getDamager() instanceof EvokerFangs f && f.getScoreboardTags().contains(ShowAnimations.FANG_TAG)) {
+            e.setCancelled(true);
+        }
     }
 
     /** Las bolas de fuego del Blaze se apagan al impactar: sin fuego, sin daño. */

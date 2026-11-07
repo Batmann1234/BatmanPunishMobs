@@ -8,6 +8,19 @@
 #   CREEPER -> un Creeper aparece y hace una explosión falsa (sin congelar, sin daño)
 #   BLAZE   -> un Blaze dispara muchas bolas de fuego (sin congelar)
 #   RAVAGER -> un Ravager sale detrás del jugador, corre hacia él, lo golpea y luego se ejecuta el comando
+#
+# NUEVAS (ItemDisplay nativos de Paper, sin MythicMobs; el comando se ejecuta en el momento del golpe final):
+#   JACK_BOX     -> un payaso sale de una caja sorpresa y se abalanza sobre el jugador
+#   JAWS         -> mandíbulas gigantes brotan del suelo y se cierran sobre el jugador
+#   CLOCK        -> reloj gigante con cuenta atrás, tres campanadas y explosión
+#   BELL         -> campana gigante que se balancea y se estrella contra el jugador
+#   BLIZZARD     -> copo de nieve gigante, estacas de hielo y un bloque de hielo que se rompe
+#   ANVIL        -> yunque estilo dibujos animados con sombra en el suelo
+#   BLACKHOLE    -> agujero negro con escombros orbitando que absorbe al jugador
+#   VEX_SWARM    -> enjambre de Vex (mobs reales) en espiral sobre un círculo ritual
+#   EVOKER_FANGS -> un Evoker (mob real) cierra una jaula de colmillos alrededor del jugador
+#   GIANT_PUNT   -> un Gigante (mob real) lanza al jugador por los aires
+#   RANDOM       -> elige una de las de `random-pool` al azar cada vez
 # Para añadir o quitar comandos, edita esta lista (el nombre del comando va en minúsculas).
 animations:
   ban: WARDEN
@@ -16,6 +29,13 @@ animations:
   warn: CREEPER
   mute: BLAZE
   kick: RAVAGER
+
+# Ejemplos con las nuevas:
+#   ban: JAWS
+#   tempban: BLACKHOLE
+#   kick: GIANT_PUNT
+#   mute: BLIZZARD
+#   warn: RANDOM
 
 # También interceptar los comandos escritos en la consola (y RCON)
 intercept-console: true
@@ -68,3 +88,27 @@ ravager:
   knockback: 1.2            # fuerza con la que te empuja
   command-delay-ticks: 5    # tiempo entre el golpe y el comando
   max-ticks: 120            # tiempo máximo de carrera; si se pasa, se ejecuta el comando igualmente
+
+# ------------------------------------------------------------
+#  NUEVAS ANIMACIONES (JACK_BOX, JAWS, CLOCK, BELL, BLIZZARD, ANVIL, BLACKHOLE,
+#  VEX_SWARM, EVOKER_FANGS, GIANT_PUNT)
+# ------------------------------------------------------------
+shows:
+  delay-command: true   # true = el comando real se ejecuta en el golpe final de la animación
+  freeze-player: true   # true = el jugador queda congelado (puede mirar, no moverse) mientras dura
+  # Se puede cambiar por animación, por ejemplo:
+  # JAWS:
+  #   delay-command: false   # el comando se ejecuta al instante y la animación se ve igualmente
+
+# Animaciones que puede elegir RANDOM
+random-pool:
+  - JACK_BOX
+  - JAWS
+  - CLOCK
+  - BELL
+  - BLIZZARD
+  - ANVIL
+  - BLACKHOLE
+  - VEX_SWARM
+  - EVOKER_FANGS
+  - GIANT_PUNT
